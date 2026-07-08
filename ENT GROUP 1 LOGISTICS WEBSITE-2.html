@@ -1,0 +1,877 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Marketspot — ENT Group 1 Logistics</title>
+
+<!--
+  ============================================================
+  SETUP REQUIRED — READ BEFORE USING
+  ============================================================
+  This site saves vendor and buyer registrations to a free
+  Firebase database so they stay visible to everyone who
+  opens the link (not just your own browser).
+
+  To activate it:
+  1. Go to https://console.firebase.google.com and create a
+     free project (no card required).
+  2. In the project, enable "Firestore Database" (start in
+     test mode) and "Storage" (start in test mode).
+  3. Go to Project Settings > General > Your apps > Web app,
+     and copy the firebaseConfig object it gives you.
+  4. Paste it into the CONFIG section below, replacing the
+     placeholder values.
+  5. Re-upload this file to GitHub Pages (or wherever you're
+     hosting it).
+
+  Until you do this, the Register buttons will show an error
+  telling you Firebase isn't connected yet.
+  ============================================================
+-->
+
+<style>
+  :root{
+    --bg:#12141C;
+    --bg-2:#181B26;
+    --card:#1E2230;
+    --card-hover:#252A3B;
+    --border: rgba(255,255,255,0.08);
+    --text:#EDEEF3;
+    --text-dim:#9498A8;
+    --buyer:#5B8CFF;
+    --buyer-dim: rgba(91,140,255,0.12);
+    --seller:#8B6CFF;
+    --seller-dim: rgba(139,108,255,0.12);
+    --accent:#33C88A;
+    --danger:#E5646B;
+    --radius: 14px;
+  }
+  *{ box-sizing:border-box; }
+  body{
+    margin:0;
+    background:var(--bg);
+    color:var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, Roboto, sans-serif;
+    min-height:100vh;
+  }
+  .screen{ display:none; min-height:100vh; }
+  .screen.active{ display:flex; flex-direction:column; }
+
+  .topbar{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    padding:18px 24px;
+    border-bottom:1px solid var(--border);
+  }
+  .logo{ font-weight:700; font-size:18px; display:flex; align-items:center; gap:8px; }
+  .logo-dot{
+    width:10px;height:10px;border-radius:50%;
+    background:linear-gradient(135deg,var(--buyer),var(--seller));
+    display:inline-block;
+  }
+  .pill-btn{
+    border:1px solid var(--border);
+    background:transparent;
+    color:var(--text-dim);
+    font-size:13px;
+    padding:8px 14px;
+    border-radius:20px;
+    cursor:pointer;
+    transition:all .15s ease;
+  }
+  .pill-btn:hover{ color:var(--text); border-color:rgba(255,255,255,0.2); }
+
+  #welcome{ align-items:center; justify-content:center; padding:24px; }
+  .welcome-inner{ max-width:520px; width:100%; text-align:center; }
+  .welcome-inner h1{ font-size:clamp(28px,5vw,38px); margin:0 0 8px; font-weight:700; letter-spacing:-0.02em; }
+  .welcome-inner p{ color:var(--text-dim); font-size:15px; margin:0 0 36px; line-height:1.5; }
+  .role-grid{ display:grid; grid-template-columns:1fr 1fr; gap:16px; }
+  .role-card{
+    background:var(--card);
+    border:1px solid var(--border);
+    border-radius:var(--radius);
+    padding:28px 18px;
+    cursor:pointer;
+    transition:transform .15s ease, border-color .15s ease, background .15s ease;
+    text-align:left;
+  }
+  .role-card:hover{ transform:translateY(-3px); background:var(--card-hover); }
+  .role-card.buyer:hover{ border-color:var(--buyer); }
+  .role-card.seller:hover{ border-color:var(--seller); }
+  .role-icon{
+    width:42px;height:42px; border-radius:10px;
+    display:flex;align-items:center;justify-content:center;
+    font-size:20px; margin-bottom:14px;
+  }
+  .role-card.buyer .role-icon{ background:var(--buyer-dim); }
+  .role-card.seller .role-icon{ background:var(--seller-dim); }
+  .role-card h3{ margin:0 0 6px; font-size:16px; }
+  .role-card p{ margin:0; font-size:13px; color:var(--text-dim); line-height:1.4; }
+  @media (max-width:520px){ .role-grid{ grid-template-columns:1fr; } }
+
+  .page{ max-width:1100px; width:100%; margin:0 auto; padding:32px 24px 80px; flex:1; }
+  .page-header{ margin-bottom:24px; }
+  .eyebrow{ font-size:12px; text-transform:uppercase; letter-spacing:0.08em; color:var(--text-dim); margin-bottom:6px; }
+  .page-header h2{ margin:0; font-size:24px; font-weight:700; letter-spacing:-0.01em; }
+
+  .controls-row{ display:flex; gap:12px; flex-wrap:wrap; margin-bottom:24px; }
+  .input, select.input{
+    background:var(--card); border:1px solid var(--border); color:var(--text);
+    border-radius:10px; padding:11px 14px; font-size:14px; font-family:inherit;
+  }
+  .input::placeholder{ color:var(--text-dim); }
+  #searchBox{ flex:1; min-width:200px; }
+
+  .stall-grid{ display:grid; grid-template-columns:repeat(auto-fill, minmax(230px,1fr)); gap:16px; }
+  .stall-card{
+    background:var(--card); border:1px solid var(--border); border-radius:var(--radius);
+    overflow:hidden; cursor:pointer; transition:transform .15s ease, background .15s ease;
+  }
+  .stall-card:hover{ transform:translateY(-2px); background:var(--card-hover); }
+  .stall-media{
+    width:100%; height:130px; background:var(--bg-2);
+    display:flex; align-items:center; justify-content:center; overflow:hidden;
+  }
+  .stall-media img{ width:100%; height:100%; object-fit:cover; }
+  .stall-media .fallback-emoji{ font-size:32px; }
+  .stall-body{ padding:16px; }
+  .stall-vendor-row{ display:flex; align-items:center; gap:8px; margin-bottom:6px; }
+  .mini-avatar{ width:26px;height:26px;border-radius:50%; object-fit:cover; border:1px solid var(--border); }
+  .mini-avatar-fallback{
+    width:26px;height:26px;border-radius:50%; background:var(--buyer-dim); color:var(--buyer);
+    display:flex; align-items:center; justify-content:center; font-size:12px; font-weight:700;
+  }
+  .stall-card h4{ margin:0; font-size:15px; }
+  .tag{
+    display:inline-block; font-size:11px; color:var(--seller); background:var(--seller-dim);
+    padding:3px 8px; border-radius:20px; margin-bottom:10px;
+  }
+  .stall-card .desc{ font-size:13px; color:var(--text-dim); line-height:1.4; margin-bottom:12px; min-height:36px; }
+  .stall-card .foot{
+    display:flex; justify-content:space-between; align-items:center; font-size:13px;
+    border-top:1px solid var(--border); padding-top:10px;
+  }
+  .price{ font-weight:700; color:var(--accent); }
+
+  .empty-state, .loading-msg{
+    border:1px dashed var(--border); border-radius:var(--radius); text-align:center;
+    padding:50px 20px; color:var(--text-dim); font-size:14px; grid-column:1/-1;
+  }
+  .loading-msg{ border-style:solid; }
+
+  .stepper{ display:flex; gap:8px; margin-bottom:32px; }
+  .step{ flex:1; height:4px; border-radius:4px; background:var(--border); overflow:hidden; }
+  .step.done, .step.current{ background:var(--seller); }
+
+  .form-card{ background:var(--card); border:1px solid var(--border); border-radius:var(--radius); padding:clamp(20px,4vw,36px); }
+  .field-group{ margin-bottom:18px; }
+  .field-group label{ display:block; font-size:13px; color:var(--text-dim); margin-bottom:6px; }
+  .field-group input, .field-group textarea, .field-group select{
+    width:100%; background:var(--bg-2); border:1px solid var(--border); color:var(--text);
+    padding:12px 14px; border-radius:10px; font-size:14px; font-family:inherit;
+  }
+  .field-group textarea{ resize:vertical; min-height:70px; }
+  .two-col{ display:grid; grid-template-columns:1fr 1fr; gap:16px; }
+  @media (max-width:520px){ .two-col{ grid-template-columns:1fr; } }
+
+  .category-grid{ display:grid; grid-template-columns:repeat(auto-fill, minmax(130px,1fr)); gap:10px; margin-bottom:8px; }
+  .cat-opt{
+    background:var(--bg-2); border:1px solid var(--border); border-radius:10px; padding:16px 10px;
+    text-align:center; cursor:pointer; font-size:13px; transition:all .15s ease;
+  }
+  .cat-opt .emoji{ font-size:22px; display:block; margin-bottom:6px; }
+  .cat-opt:hover{ border-color:rgba(255,255,255,0.25); }
+  .cat-opt.selected{ border-color:var(--seller); background:var(--seller-dim); }
+
+  .upload-box{
+    border:1px dashed var(--border); border-radius:10px; padding:16px; text-align:center;
+    cursor:pointer; position:relative; background:var(--bg-2);
+  }
+  .upload-box:hover{ border-color:rgba(255,255,255,0.3); }
+  .upload-box input[type=file]{
+    position:absolute; inset:0; opacity:0; cursor:pointer; width:100%; height:100%;
+  }
+  .upload-box .hint{ font-size:13px; color:var(--text-dim); }
+  .preview-circle{
+    width:64px; height:64px; border-radius:50%; object-fit:cover; margin:0 auto 10px;
+    display:none; border:1px solid var(--border);
+  }
+  .preview-rect{
+    width:100%; max-height:140px; object-fit:cover; border-radius:8px; margin-bottom:10px; display:none;
+  }
+
+  .form-nav{ display:flex; justify-content:space-between; margin-top:26px; }
+  .btn{
+    font-family:inherit; font-size:14px; font-weight:600; padding:12px 22px; border-radius:10px;
+    border:none; cursor:pointer; transition:opacity .15s ease, transform .15s ease;
+  }
+  .btn:hover{ opacity:0.9; }
+  .btn:active{ transform:scale(0.98); }
+  .btn-primary.buyer-theme{ background:var(--buyer); color:#fff; }
+  .btn-primary.seller-theme{ background:var(--seller); color:#fff; }
+  .btn-ghost{ background:transparent; color:var(--text-dim); border:1px solid var(--border); }
+  .btn-ghost:hover{ color:var(--text); }
+  .btn[disabled]{ opacity:0.4; cursor:not-allowed; }
+
+  #sellerSuccess .page, #buyerRegister .page{ display:flex; align-items:center; justify-content:center; flex-direction:column; }
+  .success-card{ text-align:center; max-width:420px; }
+  .success-icon{
+    width:64px;height:64px;border-radius:50%; background:var(--seller-dim); color:var(--seller);
+    display:flex;align-items:center;justify-content:center; font-size:28px; margin:0 auto 20px;
+  }
+  .success-card h2{ margin:0 0 10px; }
+  .success-card p{ color:var(--text-dim); margin:0 0 28px; line-height:1.5; }
+
+  .overlay{
+    position:fixed; inset:0; background:rgba(0,0,0,0.6); display:none;
+    align-items:center; justify-content:center; padding:20px; z-index:50;
+  }
+  .overlay.open{ display:flex; }
+  .modal{
+    background:var(--card); border:1px solid var(--border); border-radius:var(--radius);
+    max-width:420px; width:100%; padding:0; overflow:hidden; max-height:88vh; overflow-y:auto;
+  }
+  .modal-media{ width:100%; height:180px; background:var(--bg-2); overflow:hidden; }
+  .modal-media img{ width:100%; height:100%; object-fit:cover; }
+  .modal-inner{ padding:24px; }
+  .modal-top{ display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; }
+  .modal-vendor-row{ display:flex; align-items:center; gap:10px; }
+  .modal-avatar{ width:36px;height:36px;border-radius:50%; object-fit:cover; border:1px solid var(--border); }
+  .modal-close{ background:transparent; border:none; color:var(--text-dim); font-size:20px; cursor:pointer; line-height:1; }
+  .modal h3{ margin:0; }
+  .modal .desc-full{ color:var(--text-dim); font-size:14px; line-height:1.5; margin:14px 0; }
+  .modal-row{ display:flex; justify-content:space-between; font-size:14px; padding:10px 0; border-top:1px solid var(--border); }
+
+  .toast{
+    position:fixed; bottom:24px; left:50%; transform:translateX(-50%) translateY(20px);
+    background:var(--card); border:1px solid var(--seller); color:var(--text); font-size:13px;
+    padding:12px 20px; border-radius:10px; opacity:0; pointer-events:none;
+    transition:opacity .25s ease, transform .25s ease; z-index:60; max-width:90vw; text-align:center;
+  }
+  .toast.show{ opacity:1; transform:translateX(-50%) translateY(0); }
+  .toast.error{ border-color:var(--danger); }
+
+  /* footer */
+  .site-footer{
+    border-top:1px solid var(--border);
+    background:var(--bg-2);
+    padding:48px 24px 24px;
+  }
+  .footer-inner{
+    max-width:1100px; margin:0 auto;
+    display:grid; grid-template-columns:1.4fr 1fr 1fr 1fr; gap:32px;
+  }
+  @media (max-width:800px){ .footer-inner{ grid-template-columns:1fr 1fr; } }
+  @media (max-width:480px){ .footer-inner{ grid-template-columns:1fr; } }
+  .footer-blurb p{ margin:0 0 18px; font-size:13px; color:var(--text-dim); line-height:1.6; max-width:320px; }
+  .footer-socials{ display:flex; gap:14px; }
+  .footer-socials a{
+    color:var(--text-dim); text-decoration:none; font-size:18px;
+    display:flex; align-items:center; justify-content:center;
+    width:34px; height:34px; border:1px solid var(--border); border-radius:8px;
+    transition:color .15s ease, border-color .15s ease;
+  }
+  .footer-socials a:hover{ color:var(--text); border-color:rgba(255,255,255,0.3); }
+  .site-footer h4{
+    margin:0 0 16px; font-size:12px; color:var(--text-dim);
+    text-transform:uppercase; letter-spacing:0.06em; font-weight:700;
+  }
+  .footer-col ul{ list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:14px; }
+  .footer-col a{
+    color:var(--text); text-decoration:none; font-size:13px;
+    display:flex; align-items:center; justify-content:space-between; gap:6px;
+    transition:color .15s ease;
+  }
+  .footer-col a:hover{ color:var(--buyer); }
+  .footer-col a .arrow{ color:var(--text-dim); font-size:12px; }
+  .footer-bottom{
+    max-width:1100px; margin:36px auto 0; padding-top:18px;
+    border-top:1px solid var(--border); font-size:12px; color:var(--text-dim); text-align:center;
+  }
+</style>
+</head>
+<body>
+
+<div class="screen active" id="welcome">
+  <div class="page" style="display:flex;align-items:center;justify-content:center;">
+    <div class="welcome-inner">
+      <h1>Marketspot</h1>
+      <p>The place where campus vendors and students meet. Choose how you'd like to get started.</p>
+      <div class="role-grid">
+        <div class="role-card buyer" onclick="goTo('buyerRegister')">
+          <div class="role-icon">🛍️</div>
+          <h3>I'm a buyer</h3>
+          <p>Browse vendors and see what's on offer around campus.</p>
+        </div>
+        <div class="role-card seller" onclick="goTo('sellerStep1')">
+          <div class="role-icon">🏷️</div>
+          <h3>I'm a seller</h3>
+          <p>Register your stall and list what you're selling.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="screen" id="buyerRegister">
+  <div class="topbar">
+    <div class="logo"><span class="logo-dot"></span> Marketspot</div>
+    <button class="pill-btn" onclick="goTo('welcome')">← Switch role</button>
+  </div>
+  <div class="page">
+    <div class="success-card" style="text-align:left;max-width:440px;">
+      <div class="eyebrow">Buyer</div>
+      <h2 style="margin:0 0 20px;">Quick registration</h2>
+      <div class="form-card">
+        <div class="field-group">
+          <label>Your name</label>
+          <input type="text" id="b_name" placeholder="e.g. Chidera Okafor">
+        </div>
+        <div class="field-group">
+          <label>WhatsApp / phone number</label>
+          <input type="tel" id="b_contact" placeholder="e.g. 0803 000 0000">
+        </div>
+        <div class="form-nav">
+          <button class="btn btn-ghost" onclick="goTo('welcome')">Back</button>
+          <button class="btn btn-primary buyer-theme" id="buyerRegisterBtn" onclick="submitBuyer()">Continue to marketplace</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="screen" id="buyerBrowse">
+  <div class="topbar">
+    <div class="logo"><span class="logo-dot"></span> Marketspot</div>
+    <button class="pill-btn" onclick="goTo('welcome')">← Switch role</button>
+  </div>
+  <div class="page">
+    <div class="page-header">
+      <div class="eyebrow">Buyer</div>
+      <h2>Browse vendors</h2>
+    </div>
+    <div class="controls-row">
+      <input class="input" type="text" id="searchBox" placeholder="Search by name or item...">
+      <select class="input" id="categoryFilter">
+        <option value="all">All categories</option>
+        <option>Food</option>
+        <option>Fashion</option>
+        <option>Tech & Gadgets</option>
+        <option>Print & Stationery</option>
+        <option>Beauty</option>
+        <option>Services</option>
+      </select>
+    </div>
+    <div class="stall-grid" id="stallGrid"></div>
+  </div>
+</div>
+
+<div class="screen" id="sellerStep1">
+  <div class="topbar">
+    <div class="logo"><span class="logo-dot"></span> Marketspot</div>
+    <button class="pill-btn" onclick="goTo('welcome')">← Switch role</button>
+  </div>
+  <div class="page" style="max-width:640px;">
+    <div class="page-header">
+      <div class="eyebrow">Seller — Step 1 of 3</div>
+      <h2>Tell us about your stall</h2>
+    </div>
+    <div class="stepper">
+      <div class="step current"></div><div class="step"></div><div class="step"></div>
+    </div>
+    <div class="form-card">
+      <div class="field-group">
+        <label>Profile picture</label>
+        <div class="upload-box">
+          <img id="profilePreview" class="preview-circle">
+          <div class="hint" id="profileHint">Tap to upload a profile photo for your business</div>
+          <input type="file" accept="image/*" id="s_profilepic">
+        </div>
+      </div>
+      <div class="field-group">
+        <label>Stall / business name</label>
+        <input type="text" id="s_name" placeholder="e.g. Blessing's Kitchen">
+      </div>
+      <div class="two-col">
+        <div class="field-group">
+          <label>WhatsApp / phone number</label>
+          <input type="tel" id="s_contact" placeholder="e.g. 0803 000 0000">
+        </div>
+        <div class="field-group">
+          <label>Where can buyers find you?</label>
+          <input type="text" id="s_location" placeholder="e.g. Hostel B, Block 3">
+        </div>
+      </div>
+      <div class="form-nav">
+        <button class="btn btn-ghost" disabled>Back</button>
+        <button class="btn btn-primary seller-theme" onclick="toStep2()">Continue</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="screen" id="sellerStep2">
+  <div class="topbar">
+    <div class="logo"><span class="logo-dot"></span> Marketspot</div>
+    <button class="pill-btn" onclick="goTo('welcome')">← Switch role</button>
+  </div>
+  <div class="page" style="max-width:640px;">
+    <div class="page-header">
+      <div class="eyebrow">Seller — Step 2 of 3</div>
+      <h2>What do you sell?</h2>
+    </div>
+    <div class="stepper">
+      <div class="step done"></div><div class="step current"></div><div class="step"></div>
+    </div>
+    <div class="form-card">
+      <div class="category-grid" id="categoryGrid"></div>
+      <div class="form-nav">
+        <button class="btn btn-ghost" onclick="goTo('sellerStep1')">Back</button>
+        <button class="btn btn-primary seller-theme" id="toStep3Btn" onclick="toStep3()" disabled>Continue</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="screen" id="sellerStep3">
+  <div class="topbar">
+    <div class="logo"><span class="logo-dot"></span> Marketspot</div>
+    <button class="pill-btn" onclick="goTo('welcome')">← Switch role</button>
+  </div>
+  <div class="page" style="max-width:640px;">
+    <div class="page-header">
+      <div class="eyebrow">Seller — Step 3 of 3</div>
+      <h2>List your first item</h2>
+    </div>
+    <div class="stepper">
+      <div class="step done"></div><div class="step done"></div><div class="step current"></div>
+    </div>
+    <div class="form-card">
+      <div class="field-group">
+        <label>Photo of your product or service</label>
+        <div class="upload-box">
+          <img id="productPreview" class="preview-rect">
+          <div class="hint" id="productHint">Tap to upload a photo of what you're selling</div>
+          <input type="file" accept="image/*" id="s_productphoto">
+        </div>
+      </div>
+      <div class="field-group">
+        <label>Item or service description</label>
+        <textarea id="s_desc" placeholder="e.g. Jollof rice, fried rice and small chops, delivered to hostels"></textarea>
+      </div>
+      <div class="two-col">
+        <div class="field-group">
+          <label>Starting price (₦)</label>
+          <input type="text" id="s_price" placeholder="e.g. 500">
+        </div>
+        <div class="field-group">
+          <label>Fallback icon (shown if no photo)</label>
+          <select id="s_icon">
+            <option value="🍲">🍲 Food</option>
+            <option value="👗">👗 Clothing</option>
+            <option value="📱">📱 Gadget</option>
+            <option value="🖨️">🖨️ Print</option>
+            <option value="💅">💅 Beauty</option>
+            <option value="🛵">🛵 Service</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-nav">
+        <button class="btn btn-ghost" onclick="goTo('sellerStep2')">Back</button>
+        <button class="btn btn-primary seller-theme" id="submitVendorBtn" onclick="submitVendor()">Open my stall</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="screen" id="sellerSuccess">
+  <div class="topbar">
+    <div class="logo"><span class="logo-dot"></span> Marketspot</div>
+    <button class="pill-btn" onclick="goTo('welcome')">← Switch role</button>
+  </div>
+  <div class="page">
+    <div class="success-card">
+      <div class="success-icon">✓</div>
+      <h2>Your stall is live</h2>
+      <p>Buyers can now find you in the marketplace. Anyone who opens this link will see your stall too.</p>
+      <button class="btn btn-primary buyer-theme" onclick="goTo('buyerBrowse')">View marketplace</button>
+    </div>
+  </div>
+</div>
+
+<div class="overlay" id="overlay">
+  <div class="modal">
+    <div class="modal-media" id="modalMediaWrap" style="display:none;"><img id="modalPhoto"></div>
+    <div class="modal-inner">
+      <div class="modal-top">
+        <div class="modal-vendor-row">
+          <img class="modal-avatar" id="modalAvatar" style="display:none;">
+          <h3 id="modalName"></h3>
+        </div>
+        <button class="modal-close" id="modalClose">✕</button>
+      </div>
+      <span class="tag" id="modalCat"></span>
+      <p class="desc-full" id="modalDesc"></p>
+      <div class="modal-row"><span>Starting price</span><span class="price" id="modalPrice"></span></div>
+      <div class="modal-row"><span>Location</span><span id="modalLocation"></span></div>
+      <div class="modal-row"><span>Contact</span><span id="modalContact"></span></div>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast">Saved</div>
+
+<footer class="site-footer">
+  <div class="footer-inner">
+    <div class="footer-blurb">
+      <p>Follow us for more updates! Marketspot is a student-built marketplace connecting campus vendors with buyers in one place.</p>
+      <div class="footer-socials">
+        <a href="#" target="_blank" rel="noopener" aria-label="Instagram">📸</a>
+        <a href="#" target="_blank" rel="noopener" aria-label="WhatsApp">💬</a>
+        <a href="#" target="_blank" rel="noopener" aria-label="X">✖️</a>
+        <a href="#" target="_blank" rel="noopener" aria-label="Facebook">📘</a>
+      </div>
+    </div>
+    <div class="footer-col">
+      <h4>About</h4>
+      <ul>
+        <li><a href="#">About Us <span class="arrow">↗</span></a></li>
+        <li><a href="#">How It Works <span class="arrow">↗</span></a></li>
+        <li><a href="#">Contact Us <span class="arrow">↗</span></a></li>
+      </ul>
+    </div>
+    <div class="footer-col">
+      <h4>Policies</h4>
+      <ul>
+        <li><a href="#">Terms of Service <span class="arrow">↗</span></a></li>
+        <li><a href="#">Privacy Policy <span class="arrow">↗</span></a></li>
+        <li><a href="#">Safety Tips <span class="arrow">↗</span></a></li>
+      </ul>
+    </div>
+    <div class="footer-col">
+      <h4>Support</h4>
+      <ul>
+        <li><a href="#">FAQ <span class="arrow">↗</span></a></li>
+        <li><a href="#">Report a Vendor <span class="arrow">↗</span></a></li>
+        <li><a href="#">Feedback <span class="arrow">↗</span></a></li>
+      </ul>
+    </div>
+  </div>
+  <div class="footer-bottom">© 2026 ENT Group 1 — Logistics. Built for academic purposes.</div>
+</footer>
+
+<!-- Firebase SDKs -->
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-storage-compat.js"></script>
+
+<script>
+  // ================= CONFIG — REPLACE WITH YOUR OWN FIREBASE PROJECT =================
+  const firebaseConfig = {
+    apiKey: "AIzaSyCk4O51b872LepgeTUqiqHKQeGT06PP82E",
+    authDomain: "ent-group1-logistics-project1.firebaseapp.com",
+    projectId: "ent-group1-logistics-project1",
+    storageBucket: "ent-group1-logistics-project1.firebasestorage.app",
+    messagingSenderId: "567310745771",
+    appId: "1:567310745771:web:9c641b151e268d9a1ff7ee"
+  };
+  // =====================================================================================
+
+  let firebaseReady = false;
+  let db, storage;
+  try{
+    if(firebaseConfig.apiKey !== "YOUR_API_KEY"){
+      firebase.initializeApp(firebaseConfig);
+      db = firebase.firestore();
+      storage = firebase.storage();
+      firebaseReady = true;
+    }
+  }catch(err){
+    console.error("Firebase init failed:", err);
+  }
+
+  const categories = [
+    { name:"Food", emoji:"🍲" },
+    { name:"Fashion", emoji:"👗" },
+    { name:"Tech & Gadgets", emoji:"📱" },
+    { name:"Print & Stationery", emoji:"🖨️" },
+    { name:"Beauty", emoji:"💅" },
+    { name:"Services", emoji:"🛵" }
+  ];
+
+  let selectedCategory = null;
+  let draft = {};
+  let vendors = [];
+
+  function showToast(msg, isError){
+    const t = document.getElementById('toast');
+    t.textContent = msg;
+    t.classList.toggle('error', !!isError);
+    t.classList.add('show');
+    setTimeout(() => t.classList.remove('show'), 3200);
+  }
+
+  function requireFirebase(){
+    if(!firebaseReady){
+      showToast("Firebase isn't connected yet — see the setup notes at the top of the file.", true);
+      return false;
+    }
+    return true;
+  }
+
+  function goTo(id){
+    document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+    document.getElementById(id).classList.add('active');
+    window.scrollTo({top:0});
+    if(id === 'buyerBrowse') loadVendors();
+    if(id === 'sellerStep1'){ draft = {}; selectedCategory = null; resetSellerForm(); }
+  }
+
+  function resetSellerForm(){
+    document.querySelectorAll('.cat-opt').forEach(o => o.classList.remove('selected'));
+    document.getElementById('toStep3Btn').disabled = true;
+    ['s_name','s_contact','s_location','s_desc','s_price'].forEach(id => document.getElementById(id).value = '');
+    ['profilePreview','productPreview'].forEach(id => {
+      const el = document.getElementById(id);
+      el.style.display = 'none'; el.src = '';
+    });
+    document.getElementById('profileHint').style.display = 'block';
+    document.getElementById('productHint').style.display = 'block';
+  }
+
+  // ---- category grid ----
+  const categoryGrid = document.getElementById('categoryGrid');
+  categories.forEach(c => {
+    const opt = document.createElement('div');
+    opt.className = 'cat-opt';
+    opt.innerHTML = `<span class="emoji">${c.emoji}</span>${c.name}`;
+    opt.onclick = () => {
+      document.querySelectorAll('.cat-opt').forEach(o => o.classList.remove('selected'));
+      opt.classList.add('selected');
+      selectedCategory = c.name;
+      document.getElementById('toStep3Btn').disabled = false;
+    };
+    categoryGrid.appendChild(opt);
+  });
+
+  // ---- image previews ----
+  document.getElementById('s_profilepic').addEventListener('change', function(e){
+    const file = e.target.files[0];
+    if(!file) return;
+    const reader = new FileReader();
+    reader.onload = ev => {
+      const img = document.getElementById('profilePreview');
+      img.src = ev.target.result;
+      img.style.display = 'block';
+      document.getElementById('profileHint').style.display = 'none';
+    };
+    reader.readAsDataURL(file);
+  });
+  document.getElementById('s_productphoto').addEventListener('change', function(e){
+    const file = e.target.files[0];
+    if(!file) return;
+    const reader = new FileReader();
+    reader.onload = ev => {
+      const img = document.getElementById('productPreview');
+      img.src = ev.target.result;
+      img.style.display = 'block';
+      document.getElementById('productHint').style.display = 'none';
+    };
+    reader.readAsDataURL(file);
+  });
+
+  // ---- buyer registration ----
+  async function submitBuyer(){
+    const name = document.getElementById('b_name').value.trim();
+    const contact = document.getElementById('b_contact').value.trim();
+    if(!name || !contact){ showToast('Please enter your name and contact number.', true); return; }
+    if(!requireFirebase()) return;
+
+    const btn = document.getElementById('buyerRegisterBtn');
+    btn.disabled = true; btn.textContent = 'Saving...';
+    try{
+      await db.collection('buyers').add({
+        name, contact,
+        createdAt: firebase.firestore.FieldValue.serverTimestamp()
+      });
+      goTo('buyerBrowse');
+    }catch(err){
+      console.error(err);
+      showToast('Could not save your registration. Check your connection and try again.', true);
+    }finally{
+      btn.disabled = false; btn.textContent = 'Continue to marketplace';
+    }
+  }
+
+  // ---- seller flow ----
+  function toStep2(){
+    draft.name = document.getElementById('s_name').value.trim();
+    draft.contact = document.getElementById('s_contact').value.trim();
+    draft.location = document.getElementById('s_location').value.trim();
+    if(!draft.name || !draft.contact){
+      showToast('Please fill in your stall name and contact number.', true);
+      return;
+    }
+    goTo('sellerStep2');
+  }
+
+  function toStep3(){
+    if(!selectedCategory) return;
+    goTo('sellerStep3');
+  }
+
+  async function submitVendor(){
+    const desc = document.getElementById('s_desc').value.trim();
+    const price = document.getElementById('s_price').value.trim();
+    const icon = document.getElementById('s_icon').value;
+    if(!desc || !price){
+      showToast('Please add a description and starting price.', true);
+      return;
+    }
+    if(!requireFirebase()) return;
+
+    const submitBtn = document.getElementById('submitVendorBtn');
+    submitBtn.disabled = true; submitBtn.textContent = 'Opening your stall...';
+
+    try{
+      const vendorRef = db.collection('vendors').doc();
+      let profilePicURL = '';
+      let productPhotoURL = '';
+
+      const profileFile = document.getElementById('s_profilepic').files[0];
+      const productFile = document.getElementById('s_productphoto').files[0];
+
+      if(profileFile){
+        const snap = await storage.ref(`vendors/${vendorRef.id}/profile_${Date.now()}_${profileFile.name}`).put(profileFile);
+        profilePicURL = await snap.ref.getDownloadURL();
+      }
+      if(productFile){
+        const snap2 = await storage.ref(`vendors/${vendorRef.id}/product_${Date.now()}_${productFile.name}`).put(productFile);
+        productPhotoURL = await snap2.ref.getDownloadURL();
+      }
+
+      await vendorRef.set({
+        name: draft.name,
+        contact: draft.contact,
+        location: draft.location || 'On campus',
+        cat: selectedCategory,
+        desc, price, icon,
+        profilePicURL, productPhotoURL,
+        createdAt: firebase.firestore.FieldValue.serverTimestamp()
+      });
+
+      goTo('sellerSuccess');
+    }catch(err){
+      console.error(err);
+      showToast('Something went wrong saving your stall. Please check your connection and try again.', true);
+    }finally{
+      submitBtn.disabled = false; submitBtn.textContent = 'Open my stall';
+    }
+  }
+
+  // ---- buyer browse ----
+  function escapeHtml(str){
+    const d = document.createElement('div');
+    d.textContent = str;
+    return d.innerHTML;
+  }
+
+  async function loadVendors(){
+    const grid = document.getElementById('stallGrid');
+    if(!requireFirebase()){
+      grid.innerHTML = '<div class="empty-state">Firebase isn\'t connected yet, so the marketplace can\'t load. See the setup notes at the top of the file.</div>';
+      return;
+    }
+    grid.innerHTML = '<div class="loading-msg">Loading vendors...</div>';
+    try{
+      const snapshot = await db.collection('vendors').orderBy('createdAt','desc').get();
+      vendors = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    }catch(err){
+      console.error(err);
+      grid.innerHTML = '<div class="empty-state">Could not load vendors. Check your connection and refresh the page.</div>';
+      return;
+    }
+    renderStalls();
+  }
+
+  function renderStalls(){
+    const grid = document.getElementById('stallGrid');
+    const q = document.getElementById('searchBox').value.trim().toLowerCase();
+    const cat = document.getElementById('categoryFilter').value;
+
+    const filtered = vendors.filter(v => {
+      const matchesQ = !q || (v.name||'').toLowerCase().includes(q) || (v.desc||'').toLowerCase().includes(q);
+      const matchesCat = cat === 'all' || v.cat === cat;
+      return matchesQ && matchesCat;
+    });
+
+    grid.innerHTML = '';
+
+    if(vendors.length === 0){
+      grid.innerHTML = '<div class="empty-state">No sellers have registered yet. Be the first — switch role to seller and open your stall.</div>';
+      return;
+    }
+    if(filtered.length === 0){
+      grid.innerHTML = '<div class="empty-state">No vendors match that search yet.</div>';
+      return;
+    }
+
+    filtered.forEach(v => {
+      const card = document.createElement('div');
+      card.className = 'stall-card';
+      card.onclick = () => openModal(v);
+      card.innerHTML = `
+        <div class="stall-media">
+          ${v.productPhotoURL ? `<img src="${v.productPhotoURL}" alt="">` : `<div class="fallback-emoji">${v.icon || '🛍️'}</div>`}
+        </div>
+        <div class="stall-body">
+          <div class="stall-vendor-row">
+            ${v.profilePicURL ? `<img class="mini-avatar" src="${v.profilePicURL}">` : `<div class="mini-avatar-fallback">${(v.name||'?').charAt(0).toUpperCase()}</div>`}
+            <h4>${escapeHtml(v.name||'')}</h4>
+          </div>
+          <span class="tag">${v.cat||''}</span>
+          <div class="desc">${escapeHtml(v.desc||'')}</div>
+          <div class="foot">
+            <span class="price">₦${escapeHtml(v.price||'')}+</span>
+            <span>View →</span>
+          </div>
+        </div>
+      `;
+      grid.appendChild(card);
+    });
+  }
+
+  document.getElementById('searchBox').addEventListener('input', renderStalls);
+  document.getElementById('categoryFilter').addEventListener('change', renderStalls);
+
+  function openModal(v){
+    const mediaWrap = document.getElementById('modalMediaWrap');
+    if(v.productPhotoURL){
+      document.getElementById('modalPhoto').src = v.productPhotoURL;
+      mediaWrap.style.display = 'block';
+    }else{
+      mediaWrap.style.display = 'none';
+    }
+    const avatar = document.getElementById('modalAvatar');
+    if(v.profilePicURL){
+      avatar.src = v.profilePicURL;
+      avatar.style.display = 'inline-block';
+    }else{
+      avatar.style.display = 'none';
+    }
+    document.getElementById('modalName').textContent = v.name || '';
+    document.getElementById('modalCat').textContent = v.cat || '';
+    document.getElementById('modalDesc').textContent = v.desc || '';
+    document.getElementById('modalPrice').textContent = '₦' + (v.price || '');
+    document.getElementById('modalLocation').textContent = v.location || '';
+    document.getElementById('modalContact').textContent = v.contact || '';
+    document.getElementById('overlay').classList.add('open');
+  }
+  document.getElementById('modalClose').onclick = () => document.getElementById('overlay').classList.remove('open');
+  document.getElementById('overlay').onclick = (e) => { if(e.target.id === 'overlay') e.currentTarget.classList.remove('open'); };
+</script>
+
+</body>
+</html>
